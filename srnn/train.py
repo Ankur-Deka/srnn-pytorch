@@ -1,7 +1,6 @@
 '''
 Train script for the structural RNN model
 introduced in https://arxiv.org/abs/1511.05298
-
 Author : Anirudh Vemula
 Date : 29th March 2017
 '''
@@ -76,7 +75,7 @@ def main():
                         help='decay rate for the optimizer')
 
     # Dropout rate
-    parser.add_argument('--dropout', type=float, default=0.5,
+    parser.add_argument('--dropout', type=float, default=0.2,
                         help='Dropout probability')
 
     # The leave out dataset
@@ -94,7 +93,7 @@ def main():
 
 def train(args):
     # datasets = [i for i in range(5)]
-    datasets = [1, 2, 3]
+    datasets = [5,6]
     # Remove the leave out dataset from the datasets
     datasets.remove(args.leaveDataset)
     # datasets = [0]
@@ -107,22 +106,18 @@ def train(args):
     stgraph = ST_GRAPH(1, args.seq_length + 1)
 
     # Log directory
-    log_directory = 'log/'
-    log_directory += str(args.leaveDataset)+'/'
-    log_directory += 'log_attention'
+    log_directory = 'log/'+ str(args.leaveDataset)+'/log_attention'
 
     # Logging file
     log_file_curve = open(os.path.join(log_directory, 'log_curve.txt'), 'w')
     log_file = open(os.path.join(log_directory, 'val.txt'), 'w')
 
     # Save directory
-    save_directory = 'save/'
-    save_directory += str(args.leaveDataset)+'/'
-    save_directory += 'save_attention'
+    save_directory = 'save/'+str(args.leaveDataset)+'/save_attention'
 
     # Open the configuration file
     with open(os.path.join(save_directory, 'config.pkl'), 'wb') as f:
-        pickle.dump(args, f)
+        pickle.dump(args, f)	#store arguments from parser
 
     # Path to store the checkpoint file
     def checkpoint_path(x):
@@ -286,6 +281,13 @@ def train(args):
         if loss_epoch < best_val_loss:
             best_val_loss = loss_epoch
             best_epoch = epoch
+            # Save the model whenever there is imoprovement in an epoch
+            print('Saving model')
+            torch.save({
+            'epoch': epoch,
+            'state_dict': net.state_dict(),
+            'optimizer_state_dict': optimizer.state_dict()
+            }, checkpoint_path(epoch))    
 
         # Record best epoch and best validation loss
         print('(epoch {}), valid_loss = {:.3f}'.format(epoch, loss_epoch))
@@ -293,13 +295,7 @@ def train(args):
         # Log it
         log_file_curve.write(str(loss_epoch)+'\n')
 
-        # Save the model after each epoch
-        print('Saving model')
-        torch.save({
-            'epoch': epoch,
-            'state_dict': net.state_dict(),
-            'optimizer_state_dict': optimizer.state_dict()
-        }, checkpoint_path(epoch))
+        
 
     # Record the best epoch and best validation loss overall
     print('Best epoch {}, Best validation loss {}'.format(best_epoch, best_val_loss))
@@ -312,4 +308,4 @@ def train(args):
 
 
 if __name__ == '__main__':
-    main()
+	main()

@@ -14,7 +14,7 @@ import random
 
 class DataLoader():
 
-    def __init__(self, batch_size=50, seq_length=5, datasets=[0, 1, 2, 3, 4], forcePreProcess=False, infer=False):
+    def __init__(self, batch_size=50, seq_length=5, datasets=[0, 1, 2, 3, 4, 5, 6], forcePreProcess=False, infer=False):
         '''
         Initialiser function for the DataLoader class
         params:
@@ -26,9 +26,9 @@ class DataLoader():
         # List of data directories where raw data resides
         self.data_dirs = ['./data/eth/univ', './data/eth/hotel',
                           './data/ucy/zara/zara01', './data/ucy/zara/zara02',
-                          './data/ucy/univ']
+                          './data/ucy/univ','./data/atc/20121125','./data/atc/20121121']
         self.used_data_dirs = [self.data_dirs[x] for x in datasets]
-        self.test_data_dirs = [self.data_dirs[x] for x in range(5) if x not in datasets]
+        self.test_data_dirs = [self.data_dirs[x] for x in range(7) if x not in datasets]
         self.infer = infer
 
         # Number of datasets
@@ -52,15 +52,18 @@ class DataLoader():
             print("Creating pre-processed data from raw data")
             # Preprocess the data from the csv files of the datasets
             # Note that this data is processed in frames
-            self.frame_preprocess(self.used_data_dirs, data_file)
+            self.frame_preprocess(self.used_data_dirs, data_file)   ##used data directories=all data directories, data_file=destination file anme where all trajectories would be stored
 
         # Load the processed data from the pickle file
         self.load_preprocessed(data_file)
         # Reset all the data pointers of the dataloader object
+        ## reset dataset_pointer and frame_pointer
         self.reset_batch_pointer(valid=False)
         self.reset_batch_pointer(valid=True)
 
-    def frame_preprocess(self, data_dirs, data_file):
+    ##This function simply creates a single pickle file with trjectories for both training and validation data. This single file contains information for all the datasets
+    ##there is no notion of batch size, sequence length, etc here. Training and validation is simply decided based on fraction*(no. of time frames)
+    def frame_preprocess(self, data_dirs, data_file):   ##(self,all source directories, destination file to store trajectories) 
         '''
         Function that will pre-process the pixel_pos.csv files of each dataset
         into data with occupancy grid that can be used
@@ -111,13 +114,14 @@ class DataLoader():
             #    skip = 10
             # skip = 3
 
-            skip = 10
+            skip = 1
 
+            ##framelist is the complete set of times (frameIDs) for one dataset
             for ind, frame in enumerate(frameList):
 
                 ## NOTE CHANGE
                 if ind % skip != 0:
-                    # Skip every n frames
+                    # Skip every 'skip' frames
                     continue
 
                 
@@ -142,7 +146,7 @@ class DataLoader():
                     # Add their pedID, x, y to the row of the numpy array
                     pedsWithPos.append([ped, current_x, current_y])
 
-                if (ind > numFrames * self.val_fraction) or (self.infer):
+                if (ind >= numFrames * self.val_fraction) or (self.infer):
                     # At inference time, no validation data
                     # Add the details of all the peds in the current frame to all_frame_data
                     all_frame_data[dataset_index].append(np.array(pedsWithPos))
@@ -152,10 +156,18 @@ class DataLoader():
             dataset_index += 1
 
         # Save the tuple (all_frame_data, frameList_data, numPeds_data) in the pickle file
+        ## all_frame_data is a list of lists of arrays (one array for each time frame) for tranining. Separate such lists are maintained for each dataset
+        ## similarly for valid_frame_data for validation data
+        ## frameList_data is a list of lists of frameIDs. Each list (one for each dataset) contains the set of frameIDs in that dataset
+        ## numPeds_data is a list of lists of no. of pedestrians in each frameID
+
+        ## In short, everything stored is of the form list (where each list entry corresponds to one dataset) of lists (where each list is for one sequence) of something (something in a frameID)
         f = open(data_file, "wb")
         pickle.dump((all_frame_data, frameList_data, numPeds_data, valid_frame_data), f, protocol=2)
         f.close()
 
+    ##It is this fucntion which deals with batch size, etc
+    ##It only find the number of training and validation batch sizes. Doesn't actually form them
     def load_preprocessed(self, data_file):
         '''
         Function to load the pre-processed data into the DataLoader object
@@ -167,10 +179,12 @@ class DataLoader():
         self.raw_data = pickle.load(f)
         f.close()
         # Get all the data from the pickle file
-        self.data = self.raw_data[0]
-        self.frameList = self.raw_data[1]
-        self.numPedsList = self.raw_data[2]
-        self.valid_data = self.raw_data[3]
+
+        ##all of the following in the format list of lists of something. "something" is described below.
+        self.data = self.raw_data[0]        ##actual data for training
+        self.frameList = self.raw_data[1]   ##frameIDs 
+        self.numPedsList = self.raw_data[2] ##no. of pedestrians
+        self.valid_data = self.raw_data[3]  ##validation data
         counter = 0
         valid_counter = 0
 
@@ -182,8 +196,8 @@ class DataLoader():
             print('Training data from dataset {} : {}'.format(dataset, len(all_frame_data)))
             print('Validation data from dataset {} : {}'.format(dataset, len(valid_frame_data)))
             # Increment the counter with the number of sequences in the current dataset
-            counter += int(len(all_frame_data) / (self.seq_length))
-            valid_counter += int(len(valid_frame_data) / (self.seq_length))
+            counter += int(len(all_frame_data) / (self.seq_length)) ##counts number of sequences in total training data (from all the datasets)
+            valid_counter += int(len(valid_frame_data) / (self.seq_length)) ##counts number of sequences in total validation data (from all the datasets)
 
         # Calculate the number of batches
         self.num_batches = int(counter/self.batch_size)
@@ -195,9 +209,16 @@ class DataLoader():
         self.num_batches = self.num_batches * 2
         # self.valid_num_batches = self.valid_num_batches * 2
 
+        ##NOTE:
+        '''
+        Sequences are calculated for indivudual datasets because there shouldn't be ovrlap between datasets
+        Batches can have sequences from multiple datasets
+        '''
+
     def next_batch(self, randomUpdate=True):
         '''
         Function to get the next batch of points
+        ##NOTE: we already have a dataset of sequences. We only need to extract a set of sequences from this 
         '''
         # Source data
         x_batch = []
@@ -209,7 +230,7 @@ class DataLoader():
         d = []
         # Iteration index
         i = 0
-        while i < self.batch_size:
+        while i < self.batch_size:  ##It will extract batch_size number of sequences
             # Extract the frame data of the current dataset
             frame_data = self.data[self.dataset_pointer]
             frame_ids = self.frameList[self.dataset_pointer]
