@@ -48,8 +48,8 @@ def plot_trajectories(true_trajs, pred_trajs, nodesPresent, obs_length, name, pl
     #    width = width_true
     #    height = height_true
     # else:
-    width = 1
-    height = 1
+    #width = 1
+    #height = 1
 
     traj_data = {}
     for tstep in range(traj_length):
@@ -69,17 +69,17 @@ def plot_trajectories(true_trajs, pred_trajs, nodesPresent, obs_length, name, pl
         true_traj_ped = traj_data[j][0]  # List of [x,y] elements
         pred_traj_ped = traj_data[j][1]
 
-        true_x = [(p[0]+1)/2*height for p in true_traj_ped]
-        true_y = [(p[1]+1)/2*width for p in true_traj_ped]
-        pred_x = [(p[0]+1)/2*height for p in pred_traj_ped]
-        pred_y = [(p[1]+1)/2*width for p in pred_traj_ped]
+        true_x = [p[0] for p in true_traj_ped] #[(p[0]+1)/2*height for p in true_traj_ped]
+        true_y = [p[1] for p in true_traj_ped] #[(p[1]+1)/2*width for p in true_traj_ped]
+        pred_x = [p[0] for p in pred_traj_ped] #[(p[0]+1)/2*height for p in pred_traj_ped]
+        pred_y = [p[1] for p in pred_traj_ped] #[(p[1]+1)/2*width for p in pred_traj_ped]
 
         plt.plot(true_x, true_y, color=c, linestyle='solid', linewidth=2, marker='o')
         plt.plot(pred_x, pred_y, color=c, linestyle='dashed', linewidth=2, marker='+')
 
-    if not withBackground:
-        plt.ylim((1, 0))
-        plt.xlim((0, 1))
+    #if not withBackground:
+    #    plt.ylim((1, 0))
+    #    plt.xlim((0, 1))
 
     plt.show()
     if withBackground:
@@ -109,7 +109,7 @@ def main():
 
     # Check experiment tags
     if not (args.noedges or args.temporal or args.temporal_spatial or args.attention):
-        print 'Use one of the experiment tags to enforce model'
+        print('Use one of the experiment tags to enforce model')
         return
 
     # Save directory
@@ -117,19 +117,19 @@ def main():
     save_directory += str(args.test_dataset) + '/'
     plot_directory = 'plot/'
     if args.noedges:
-        print 'No edge RNNs used'
+        print('No edge RNNs used')
         save_directory += 'save_noedges'
         plot_directory += 'plot_noedges'
     elif args.temporal:
-        print 'Only temporal edge RNNs used'
+        print('Only temporal edge RNNs used')
         save_directory += 'save_temporal'
         plot_directory += 'plot_temporal'
     elif args.temporal_spatial:
-        print 'Both temporal and spatial edge RNNs used'
+        print('Both temporal and spatial edge RNNs used')
         save_directory += 'save_temporal_spatial'
         plot_directory += 'plot_temporal_spatial'
     else:
-        print 'Both temporal and spatial edge RNNs used with attention'
+        print('Both temporal and spatial edge RNNs used with attention')
         save_directory += 'save_attention'
         plot_directory += 'plot_attention'
 
@@ -141,7 +141,7 @@ def main():
     withBackground = 0
 
     for i in range(len(results)):
-        print i
+        print(i)
         name = 'sequence' + str(i)
         plot_trajectories(results[i][0], results[i][1], results[i][2], results[i][3], name, plot_directory, withBackground)
 
