@@ -118,7 +118,7 @@ class DataLoader():
             if directory==self.data_dirs[5] or directory==self.data_dirs[6]: 
                 skip = 10
             else:
-                skip=1
+                skip=11
 
             ##framelist is the complete set of times (frameIDs) for one dataset
             for ind, frame in enumerate(frameList):
@@ -150,7 +150,7 @@ class DataLoader():
                     # Add their pedID, x, y to the row of the numpy array
                     pedsWithPos.append([ped, current_x, current_y])
 
-                if (ind >= numFrames * self.val_fraction) or (self.infer):
+                if (ind >= numFrames * self.val_fraction) or (self.infer):  #num_frames*val_fraction amount needs to go to validation set, then to training set. self.infer is true during testing so nothing goes to validation
                     # At inference time, no validation data
                     # Add the details of all the peds in the current frame to all_frame_data
                     all_frame_data[dataset_index].append(np.array(pedsWithPos))
@@ -197,8 +197,11 @@ class DataLoader():
             # get the frame data for the current dataset
             all_frame_data = self.data[dataset]
             valid_frame_data = self.valid_data[dataset]
-            print('Training data from dataset {} : {}'.format(dataset, len(all_frame_data)))
-            print('Validation data from dataset {} : {}'.format(dataset, len(valid_frame_data)))
+            if self.infer:  #if testing
+                print('Testing data (no. of time frames) from dataset {} : {}'.format(dataset, len(all_frame_data)))    
+            else:   #if training
+                print('Training data (no. of time frames) from dataset {} : {}'.format(dataset, len(all_frame_data)))
+                print('Validation data (no. of time frames) from dataset {} : {}'.format(dataset, len(valid_frame_data)))
             # Increment the counter with the number of sequences in the current dataset
             counter += int(len(all_frame_data) / (self.seq_length)) ##counts number of sequences in total training data (from all the datasets)
             valid_counter += int(len(valid_frame_data) / (self.seq_length)) ##counts number of sequences in total validation data (from all the datasets)
@@ -206,8 +209,11 @@ class DataLoader():
         # Calculate the number of batches
         self.num_batches = int(counter/self.batch_size)
         self.valid_num_batches = int(valid_counter/self.batch_size)
-        print('Total number of training batches: {}'.format(self.num_batches * 2))
-        print('Total number of validation batches: {}'.format(self.valid_num_batches))
+        if self.infer:  #if training
+            print('Total number of testing batches: {}'.format(self.num_batches * 2))
+        else:   #if testing
+            print('Total number of training batches: {}'.format(self.num_batches * 2))
+            print('Total number of validation batches: {}'.format(self.valid_num_batches))
         # On an average, we need twice the number of batches to cover the data
         # due to randomization introduced
         self.num_batches = self.num_batches * 2

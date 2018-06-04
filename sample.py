@@ -34,11 +34,12 @@ def main():
                         help='Predicted length of the trajectory')
     
     # Train Dataset
-    parser.add_argument('--train_dataset', type=int, default=5,
-                        help='Dataset the model is already on')
+    # Use like:
+    # python transpose_inrange.py --train_dataset index_1 index_2 ...
+    parser.add_argument('-l','--train_dataset', nargs='+', help='<Required> training dataset(s) the model is trained on: --train_dataset index_1 index_2 ...', default=[0,1,2,4], type=int)    
 
     # Test dataset
-    parser.add_argument('--test_dataset', type=int, default=6,
+    parser.add_argument('--test_dataset', type=int, default=3,
                         help='Dataset to be tested on')
 
     # Model to be loaded
@@ -54,8 +55,7 @@ def main():
 
     # Save directory
     load_directory = 'save/'
-    load_directory += 'trainedOn_'+str(sample_args.train_dataset)+'/'
-    load_directory += 'save_attention'
+    load_directory += 'trainedOn_'+str(sample_args.train_dataset)
 
     # Define the path for the config file for saved args
     ## Arguments of parser while traning
@@ -138,7 +138,7 @@ def main():
     print('Total final error of the model is ', final_error / dataloader.num_batches)
 
     print('Saving results')
-    save_directory=load_directory+'/../testedOn_'+str(sample_args.test_dataset)+'/save_attention'
+    save_directory=load_directory+'/testedOn_'+str(sample_args.test_dataset)
     if not os.path.exists(save_directory):
         os.makedirs(save_directory)
     with open(os.path.join(save_directory, 'results.pkl'), 'wb') as f:

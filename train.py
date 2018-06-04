@@ -18,6 +18,7 @@ from st_graph import ST_GRAPH
 from model import SRNN
 from criterion import Gaussian2DLikelihood
 
+import numpy as np
 
 def main():
     parser = argparse.ArgumentParser()
@@ -47,7 +48,8 @@ def main():
                         help='Attention size')
 
     # Sequence length
-    parser.add_argument('--seq_length', type=int, default=8,
+    ## Total sequence length (input+ouput)
+    parser.add_argument('--seq_length', type=int, default=20,
                         help='Sequence length')
     parser.add_argument('--pred_length', type=int, default=12,
                         help='Predicted sequence length')
@@ -57,7 +59,7 @@ def main():
                         help='Batch size')
 
     # Number of epochs
-    parser.add_argument('--num_epochs', type=int, default=1000,
+    parser.add_argument('--num_epochs', type=int, default=100,
                         help='number of epochs')
 
     # Gradient value at which it should be clipped
@@ -86,10 +88,14 @@ def main():
     parser.add_argument('--save_every', action='store_true',default=False,
                         help='Save after every epoch?')
     # Train dataset
-    parser.add_argument('--train_dataset', type=int, default=5,
-                        help='The dataset index to be left out in training')
+    # Use like:
+    # python transpose_inrange.py --train_dataset index_1 index_2 ...
+    parser.add_argument('-l','--train_dataset', nargs='+', help='<Required> training dataset(s): --train_dataset index_1 index_2 ...', default=[0,1,2,4], type=int)
+    
+    args=parser.parse_args()
+    print(args.train_dataset)
 
-    args = parser.parse_args()
+    
 
     train(args)
 
@@ -97,13 +103,13 @@ def main():
 def train(args):
 
     # Construct the DataLoader object
-    dataloader = DataLoader(args.batch_size, args.seq_length + 1, [args.train_dataset], forcePreProcess=True)
+    dataloader = DataLoader(args.batch_size, args.seq_length + 1, args.train_dataset, forcePreProcess=True)
 
     # Construct the ST-graph object
     stgraph = ST_GRAPH(1, args.seq_length + 1)
 
     # Log directory
-    log_directory = 'log/trainedOn_'+ str(args.train_dataset)+'/log_attention'
+    log_directory = 'log/trainedOn_'+ str(args.train_dataset)
     if not os.path.exists(log_directory):
             os.makedirs(log_directory)
 
@@ -112,7 +118,7 @@ def train(args):
     log_file = open(os.path.join(log_directory, 'val.txt'), 'w')
 
     # Save directory for saving the model
-    save_directory = 'save/trainedOn_'+str(args.train_dataset)+'/save_attention'
+    save_directory = 'save/trainedOn_'+str(args.train_dataset)
     if not os.path.exists(save_directory):
         os.makedirs(save_directory)
 
@@ -287,6 +293,10 @@ def train(args):
             'state_dict': net.state_dict(),
             'optimizer_state_dict': optimizer.state_dict()
             }, checkpoint_path(epoch)) 
+
+        #save_best_model overwriting the earlier file
+        #if loss_epoch < best_val_loss:
+
 
         # Update best validation loss until now
         if loss_epoch < best_val_loss:

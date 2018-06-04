@@ -86,6 +86,7 @@ def plot_trajectories(true_trajs, pred_trajs, nodesPresent, obs_length, name, pl
     #plt.xlim(-3.1, 3.1)
     #plt.ylim(-3.1, 3.1)
 
+    plt.show()
     if withBackground:
         plt.savefig('plot_with_background/'+name+'.png')
     else:
@@ -99,46 +100,21 @@ def plot_trajectories(true_trajs, pred_trajs, nodesPresent, obs_length, name, pl
 def main():
     parser = argparse.ArgumentParser()
 
-    # Experiments
-    parser.add_argument('--noedges', action='store_true')
-    parser.add_argument('--temporal', action='store_true')
-    parser.add_argument('--temporal_spatial', action='store_true')
-    parser.add_argument('--attention', action='store_true')
+    # Train Dataset
+    # Use like:
+    # python transpose_inrange.py --train_dataset index_1 index_2 ...
+    parser.add_argument('-l','--train_dataset', nargs='+', help='<Required> training dataset(s) the model is trained on: --train_dataset index_1 index_2 ...', default=[0,1,2,4], type=int)    
 
-    parser.add_argument('--train_dataset',type=int,default=5,help='train dataset index')
-    parser.add_argument('--test_dataset', type=int, default=6,
+    parser.add_argument('--test_dataset', type=int, default=3,
                         help='test dataset index')
 
     # Parse the parameters
     args = parser.parse_args()
 
-    # Check experiment tags
-    if not (args.noedges or args.temporal or args.temporal_spatial or args.attention):
-        print('Use one of the experiment tags to enforce model (use one of --noedges, --temporal, --temporal_spatial and --attention')
-        return
-
     # Save directory
     save_directory = 'save/'
-    save_directory += 'trainedOn_'+str(args.train_dataset) + '/testedOn_' + str(args.test_dataset) + '/'
-    plot_directory = 'plot/trainedOn_'+str(args.train_dataset) + '/testedOn_' + str(args.test_dataset) + '/'
-    
-
-    if args.noedges:
-        print('No edge RNNs used')
-        save_directory += 'save_noedges'
-        plot_directory += 'plot_noedges'
-    elif args.temporal:
-        print('Only temporal edge RNNs used')
-        save_directory += 'save_temporal'
-        plot_directory += 'plot_temporal'
-    elif args.temporal_spatial:
-        print('Both temporal and spatial edge RNNs used')
-        save_directory += 'save_temporal_spatial'
-        plot_directory += 'plot_temporal_spatial'
-    else:
-        print('Both temporal and spatial edge RNNs used with attention')
-        save_directory += 'save_attention'
-        plot_directory += 'plot_attention'
+    save_directory += 'trainedOn_'+str(args.train_dataset) + '/testedOn_' + str(args.test_dataset)
+    plot_directory = 'plot/trainedOn_'+str(args.train_dataset) + '/testedOn_' + str(args.test_dataset)
 
     if not os.path.exists(plot_directory):
             os.makedirs(plot_directory)
