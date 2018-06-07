@@ -115,7 +115,7 @@ def main():
         obs_nodes, obs_edges, obs_nodesPresent, obs_edgesPresent = nodes[:sample_args.obs_length], edges[:sample_args.obs_length], nodesPresent[:sample_args.obs_length], edgesPresent[:sample_args.obs_length]
 
         # Sample function
-        ret_nodes, ret_attn = sample(obs_nodes, obs_edges, obs_nodesPresent, obs_edgesPresent, sample_args, net, nodes, edges, nodesPresent)
+        ret_nodes, ret_attn, ret_new_attn = sample(obs_nodes, obs_edges, obs_nodesPresent, obs_edgesPresent, sample_args, net, nodes, edges, nodesPresent)
 
         # Compute mean and final displacement error
         total_error += get_mean_error(ret_nodes[sample_args.obs_length:].data, nodes[sample_args.obs_length:].data, nodesPresent[sample_args.obs_length-1], nodesPresent[sample_args.obs_length:], saved_args.use_cuda)
@@ -127,9 +127,9 @@ def main():
 
         # Store results
         if saved_args.use_cuda:            
-            results.append((nodes.data.cpu().numpy(), ret_nodes.data.cpu().numpy(), nodesPresent, sample_args.obs_length, ret_attn, frameIDs))
+            results.append((nodes.data.cpu().numpy(), ret_nodes.data.cpu().numpy(), nodesPresent, sample_args.obs_length, ret_attn, ret_new_attn, frameIDs))
         else:
-            results.append((nodes.data.numpy(), ret_nodes.data.numpy(), nodesPresent, sample_args.obs_length, ret_attn, frameIDs))
+            results.append((nodes.data.numpy(), ret_nodes.data.numpy(), nodesPresent, sample_args.obs_length, ret_attn, ret_new_attn, frameIDs))
 
         # Reset the ST graph
         stgraph.reset()
@@ -191,7 +191,8 @@ def sample(nodes, edges, nodesPresent, edgesPresent, args, net, true_nodes, true
     # Propagate the observed length of the trajectory
     for tstep in range(args.obs_length-1):
         # Forward prop
-        out_obs, h_nodes, h_edges, c_nodes, c_edges, _ = net(nodes[tstep].view(1, numNodes, 2), edges[tstep].view(1, numNodes*numNodes, 2), [nodesPresent[tstep]], [edgesPresent[tstep]], h_nodes, h_edges, c_nodes, c_edges)
+        ##** it was written net() instead of net.forward() but it still worked. I don't know why - Turns out, pytorch documentation talks about it.
+        out_obs, h_nodes, h_edges, c_nodes, c_edges, _, _ = net.forward(nodes[tstep].view(1, numNodes, 2), edges[tstep].view(1, numNodes*numNodes, 2), [nodesPresent[tstep]], [edgesPresent[tstep]], h_nodes, h_edges, c_nodes, c_edges)
         # loss_obs = Gaussian2DLikelihood(out_obs, nodes[tstep+1].view(1, numNodes, 2), [nodesPresent[tstep+1]])
 
     # Initialize the return data structures
@@ -206,12 +207,13 @@ def sample(nodes, edges, nodesPresent, edgesPresent, args, net, true_nodes, true
     ret_edges[:args.obs_length, :, :] = edges.clone()
 
     ret_attn = []
-
+    ret_new_attn = []
     # Propagate the predicted length of trajectory (sampling from previous prediction)
     for tstep in range(args.obs_length-1, args.pred_length + args.obs_length-1):
         # TODO Not keeping track of nodes leaving the frame (or new nodes entering the frame, which I don't think we can do anyway)
         # Forward prop
-        outputs, h_nodes, h_edges, c_nodes, c_edges, attn_w = net(ret_nodes[tstep].view(1, numNodes, 2), ret_edges[tstep].view(1, numNodes*numNodes, 2),
+        ##** it was written net() instead of net.forward() but it still worked. I don't know why - Turns out, pytorch documentation talks about it.
+        outputs, h_nodes, h_edges, c_nodes, c_edges, attn_w, new_attn_w = net.forward(ret_nodes[tstep].view(1, numNodes, 2), ret_edges[tstep].view(1, numNodes*numNodes, 2),
                                                                   [nodesPresent[args.obs_length-1]], [edgesPresent[args.obs_length-1]], h_nodes, h_edges, c_nodes, c_edges)
         loss_pred = Gaussian2DLikelihoodInference(outputs, true_nodes[tstep + 1].view(1, numNodes, 2), nodesPresent[args.obs_length-1], [true_nodesPresent[tstep + 1]], args.use_cuda)
 
@@ -229,8 +231,11 @@ def sample(nodes, edges, nodesPresent, edgesPresent, args, net, true_nodes, true
 
         # Store computed attention weights
         ret_attn.append(attn_w[0])
+        ret_new_attn.append(new_attn_w[0])
+        print(new_attn_w[0])
+        
 
-    return ret_nodes, ret_attn
+    return ret_nodes, ret_attn, ret_new_attn
 
 
 if __name__ == '__main__':

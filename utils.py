@@ -118,7 +118,7 @@ class DataLoader():
             if directory==self.data_dirs[5] or directory==self.data_dirs[6]: 
                 skip = 10
             else:
-                skip=11
+                skip=10
 
             ##framelist is the complete set of times (frameIDs) for one dataset
             for ind, frame in enumerate(frameList):
@@ -160,8 +160,8 @@ class DataLoader():
             dataset_index += 1
 
         # Save the tuple (all_frame_data, frameList_data, numPeds_data) in the pickle file
-        ## all_frame_data is a list of lists of arrays (one array for each time frame) for tranining. Separate such lists are maintained for each dataset
-        ## similarly for valid_frame_data for validation data
+        ## all_frame_data is a list of lists of arrays (one array for each time frame) for tranining dataset during training OR testing dataset during testing. Separate such lists are maintained for each dataset
+        ## similarly for valid_frame_data for validation data during training
         ## frameList_data is a list of lists of frameIDs. Each list (one for each dataset) contains the set of frameIDs in that dataset
         ## numPeds_data is a list of lists of no. of pedestrians in each frameID
 
@@ -274,6 +274,11 @@ class DataLoader():
                 self.tick_batch_pointer(valid=False)
 
         return x_batch, y_batch, frame_batch, d
+        ## Format:
+        ## x_batch:     input sequence of length self.seq_length
+        ## y_batch:     output seq of same length shifted y 1 step in time
+        ## frame_batch: frame IDs in the batch
+        ## d:           current dataset pointer (points to the next batch to be loaded)
 
     def next_valid_batch(self, randomUpdate=True):
         '''
