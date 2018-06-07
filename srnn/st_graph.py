@@ -21,7 +21,7 @@ class ST_GRAPH():
         self.batch_size = batch_size
         self.seq_length = seq_length
 
-        self.nodes = [{} for i in range(batch_size)]
+        self.nodes = [{} for i in range(batch_size)]    ##empty list of length batch_size (no. of sequences)
         self.edges = [{} for i in range(batch_size)]
 
     def reset(self):
@@ -34,10 +34,10 @@ class ST_GRAPH():
         params:
         source_batch : List of lists of numpy arrays. Each numpy array corresponds to a frame in the sequence.
         '''
-        for sequence in range(self.batch_size):
+        for sequence in range(self.batch_size): ##sequence number (0 to 49) within batch_size
             # source_seq is a list of numpy arrays
             # where each numpy array corresponds to a single frame
-            source_seq = source_batch[sequence]
+            source_seq = source_batch[sequence] 
             for framenum in range(self.seq_length):
                 # Each frame is a numpy array
                 # each row in the array is of the form
@@ -166,7 +166,6 @@ class ST_GRAPH():
 
 
 class ST_NODE():
-
     def __init__(self, node_type, node_id, node_pos_list):
         '''
         Initializer function for the ST node class
@@ -178,14 +177,17 @@ class ST_NODE():
         self.node_type = node_type
         self.node_id = node_id
         self.node_pos_list = node_pos_list
+        self.i=0
 
     def getPosition(self, index):
         '''
-        Get the position of the node at time-step index in the sequence
+        Get the position of the node at time-step index (framenum) in the sequence
         params:
         index : time-step
         '''
         assert(index in self.node_pos_list)
+        #print("success",self.i)
+        #self.i=self.i+1
         return self.node_pos_list[index]
 
     def getType(self):

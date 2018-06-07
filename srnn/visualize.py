@@ -11,7 +11,7 @@ import pickle
 from torch.autograd import Variable
 import argparse
 import seaborn
-
+import os
 
 def plot_trajectories(true_trajs, pred_trajs, nodesPresent, obs_length, name, plot_directory, withBackground=False):
     '''
@@ -81,7 +81,12 @@ def plot_trajectories(true_trajs, pred_trajs, nodesPresent, obs_length, name, pl
     #    plt.ylim((1, 0))
     #    plt.xlim((0, 1))
 
-    plt.show()
+    #plt.show()
+
+    #plt.xlim(-3.1, 3.1)
+    #plt.ylim(-3.1, 3.1)
+
+    #plt.show()
     if withBackground:
         plt.savefig('plot_with_background/'+name+'.png')
     else:
@@ -95,43 +100,24 @@ def plot_trajectories(true_trajs, pred_trajs, nodesPresent, obs_length, name, pl
 def main():
     parser = argparse.ArgumentParser()
 
-    # Experiments
-    parser.add_argument('--noedges', action='store_true')
-    parser.add_argument('--temporal', action='store_true')
-    parser.add_argument('--temporal_spatial', action='store_true')
-    parser.add_argument('--attention', action='store_true')
+    # Train Dataset
+    # Use like:
+    # python transpose_inrange.py --train_dataset index_1 index_2 ...
+    parser.add_argument('-l','--train_dataset', nargs='+', help='<Required> training dataset(s) the model is trained on: --train_dataset index_1 index_2 ...', default=[0,1,2,4], type=int)    
 
-    parser.add_argument('--test_dataset', type=int, default=0,
+    parser.add_argument('--test_dataset', type=int, default=3,
                         help='test dataset index')
 
     # Parse the parameters
     args = parser.parse_args()
 
-    # Check experiment tags
-    if not (args.noedges or args.temporal or args.temporal_spatial or args.attention):
-        print('Use one of the experiment tags to enforce model')
-        return
-
     # Save directory
     save_directory = 'save/'
-    save_directory += str(args.test_dataset) + '/'
-    plot_directory = 'plot/'
-    if args.noedges:
-        print('No edge RNNs used')
-        save_directory += 'save_noedges'
-        plot_directory += 'plot_noedges'
-    elif args.temporal:
-        print('Only temporal edge RNNs used')
-        save_directory += 'save_temporal'
-        plot_directory += 'plot_temporal'
-    elif args.temporal_spatial:
-        print('Both temporal and spatial edge RNNs used')
-        save_directory += 'save_temporal_spatial'
-        plot_directory += 'plot_temporal_spatial'
-    else:
-        print('Both temporal and spatial edge RNNs used with attention')
-        save_directory += 'save_attention'
-        plot_directory += 'plot_attention'
+    save_directory += 'trainedOn_'+str(args.train_dataset) + '/testedOn_' + str(args.test_dataset)
+    plot_directory = 'plot/trainedOn_'+str(args.train_dataset) + '/testedOn_' + str(args.test_dataset)
+
+    if not os.path.exists(plot_directory):
+            os.makedirs(plot_directory)
 
     f = open(save_directory+'/results.pkl', 'rb')
     results = pickle.load(f)
@@ -140,8 +126,9 @@ def main():
     # withBackground = int(input())
     withBackground = 0
 
+    print('Plotting and saving in '+plot_directory)
     for i in range(len(results)):
-        print(i)
+        print('Sequence', i)
         name = 'sequence' + str(i)
         plot_trajectories(results[i][0], results[i][1], results[i][2], results[i][3], name, plot_directory, withBackground)
 

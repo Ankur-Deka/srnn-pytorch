@@ -100,7 +100,7 @@ def main():
     # Save directory
     save_directory = 'save/'
     save_directory += 'trainedOn_'+str(args.train_dataset) + '/testedOn_' + str(args.test_dataset)+'/'
-    plot_directory = 'plot/plot_attention_viz/trainedOn_'+str(args.train_dataset) + '/testedOn_' + str(args.test_dataset)
+    plot_directory = 'plot/plot_new_attention_viz/trainedOn_'+str(args.train_dataset) + '/testedOn_' + str(args.test_dataset)
 
     if not os.path.exists(plot_directory):
         os.makedirs(plot_directory)
@@ -115,11 +115,11 @@ def main():
         pred_pos_nodes = results[i][1]
         nodes_present = results[i][2]
         observed_length = results[i][3]
-        attn_weights = results[i][4]
+        new_attn_weights = results[i][5]
 
         name = 'sequence' + str(i)
 
-        plot_attention(true_pos_nodes, pred_pos_nodes, nodes_present, observed_length, attn_weights, name, plot_directory)
+        plot_attention(true_pos_nodes, pred_pos_nodes, nodes_present, observed_length, new_attn_weights, name, plot_directory)
 
 
 if __name__ == '__main__':

@@ -18,6 +18,7 @@ from st_graph import ST_GRAPH
 from model import SRNN
 from criterion import Gaussian2DLikelihood
 
+import numpy as np
 
 def main():
     parser = argparse.ArgumentParser()
@@ -47,6 +48,7 @@ def main():
                         help='Attention size')
 
     # Sequence length
+    ## Total sequence length (input+ouput)
     parser.add_argument('--seq_length', type=int, default=20,
                         help='Sequence length')
     parser.add_argument('--pred_length', type=int, default=12,
@@ -57,7 +59,7 @@ def main():
                         help='Batch size')
 
     # Number of epochs
-    parser.add_argument('--num_epochs', type=int, default=1000,
+    parser.add_argument('--num_epochs', type=int, default=100,
                         help='number of epochs')
 
     # Gradient value at which it should be clipped
@@ -78,48 +80,52 @@ def main():
     parser.add_argument('--dropout', type=float, default=0.2,
                         help='Dropout probability')
 
-    # The leave out dataset
-    parser.add_argument('--leaveDataset', type=int, default=3,
-                        help='The dataset index to be left out in training')
-
     # Use GPU or CPU
     parser.add_argument('--use_cuda', action="store_true", default=False,
                         help='Use GPU or CPU')
 
-    args = parser.parse_args()
+    # Save every model or only improved models
+    parser.add_argument('--save_every', action='store_true',default=False,
+                        help='Save after every epoch?')
+    # Train dataset
+    # Use like:
+    # python transpose_inrange.py --train_dataset index_1 index_2 ...
+    parser.add_argument('-l','--train_dataset', nargs='+', help='<Required> training dataset(s): --train_dataset index_1 index_2 ...', default=[0,1,2,4], type=int)
+    args=parser.parse_args()
 
     train(args)
 
 
 def train(args):
-    # datasets = [i for i in range(5)]
-    datasets = [5,6]
-    # Remove the leave out dataset from the datasets
-    datasets.remove(args.leaveDataset)
-    # datasets = [0]
-    # args.leaveDataset = 0
 
     # Construct the DataLoader object
-    dataloader = DataLoader(args.batch_size, args.seq_length + 1, datasets, forcePreProcess=True)
+    ## args: (batch_size=50, seq_length=5, datasets=[0, 1, 2, 3, 4, 5, 6], forcePreProcess=False, infer=False)
+    dataloader = DataLoader(args.batch_size, args.seq_length + 1, args.train_dataset, forcePreProcess=True) ##** not sure why seq_length+1
 
     # Construct the ST-graph object
-    stgraph = ST_GRAPH(1, args.seq_length + 1)
+    ## args: (batch_size=50, seq_length=5)
+    stgraph = ST_GRAPH(1, args.seq_length + 1)  ##**not sure why batch_size=1 and seq_length+1
 
     # Log directory
-    log_directory = 'log/'+ str(args.leaveDataset)+'/log_attention'
+    log_directory = 'log/trainedOn_'+ str(args.train_dataset)
+    if not os.path.exists(log_directory):
+            os.makedirs(log_directory)
 
     # Logging file
     log_file_curve = open(os.path.join(log_directory, 'log_curve.txt'), 'w')
     log_file = open(os.path.join(log_directory, 'val.txt'), 'w')
 
-    # Save directory
-    save_directory = 'save/'+str(args.leaveDataset)+'/save_attention'
+    # Save directory for saving the model
+    save_directory = 'save/trainedOn_'+str(args.train_dataset)
+    if not os.path.exists(save_directory):
+        os.makedirs(save_directory)
 
     # Open the configuration file
+    ## store arguments from parser
     with open(os.path.join(save_directory, 'config.pkl'), 'wb') as f:
-        pickle.dump(args, f)	#store arguments from parser
+        pickle.dump(args, f)
 
-    # Path to store the checkpoint file
+    # Path to store the checkpoint file, i.e. model after the particular epoch
     def checkpoint_path(x):
         return os.path.join(save_directory, 'srnn_model_'+str(x)+'.tar')
 
@@ -147,6 +153,11 @@ def train(args):
             start = time.time()
 
             # Get batch data
+            ## Format:
+            ## x_batch:     input sequence of length self.seq_length
+            ## y_batch:     output seq of same length shifted y 1 step in time
+            ## frame_batch: frame IDs in the batch
+            ## d:           current position of dataset pointer (points to the next batch to be loaded)
             x, _, _, d = dataloader.next_batch(randomUpdate=True)
 
             # Loss for this batch
@@ -277,18 +288,25 @@ def train(args):
 
         loss_epoch = loss_epoch / dataloader.valid_num_batches
 
-        # Update best validation loss until now
-        if loss_epoch < best_val_loss:
-            best_val_loss = loss_epoch
-            best_epoch = epoch
-            # Save the model whenever there is imoprovement in an epoch
+
+        #Saving the model\
+        if loss_epoch < best_val_loss or args.save_every:
             print('Saving model')
             torch.save({
             'epoch': epoch,
             'state_dict': net.state_dict(),
             'optimizer_state_dict': optimizer.state_dict()
-            }, checkpoint_path(epoch))    
+            }, checkpoint_path(epoch)) 
 
+        #save_best_model overwriting the earlier file
+        #if loss_epoch < best_val_loss:
+
+
+        # Update best validation loss until now
+        if loss_epoch < best_val_loss:
+            best_val_loss = loss_epoch
+            best_epoch = epoch
+                      
         # Record best epoch and best validation loss
         print('(epoch {}), valid_loss = {:.3f}'.format(epoch, loss_epoch))
         print('Best epoch {}, Best validation loss {}'.format(best_epoch, best_val_loss))

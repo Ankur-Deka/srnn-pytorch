@@ -26,7 +26,7 @@ class DataLoader():
         # List of data directories where raw data resides
         self.data_dirs = ['./data/eth/univ', './data/eth/hotel',
                           './data/ucy/zara/zara01', './data/ucy/zara/zara02',
-                          './data/ucy/univ','./data/atc/20121125','./data/atc/20121121']
+                          './data/ucy/univ','./data/atc/20121125/train','./data/atc/20121125/test']
         self.used_data_dirs = [self.data_dirs[x] for x in datasets]
         self.test_data_dirs = [self.data_dirs[x] for x in range(7) if x not in datasets]
         self.infer = infer
@@ -114,7 +114,11 @@ class DataLoader():
             #    skip = 10
             # skip = 3
 
-            skip = 1
+            #Skip only for ATC dataset
+            if directory==self.data_dirs[5] or directory==self.data_dirs[6]: 
+                skip = 10
+            else:
+                skip=10
 
             ##framelist is the complete set of times (frameIDs) for one dataset
             for ind, frame in enumerate(frameList):
@@ -146,7 +150,7 @@ class DataLoader():
                     # Add their pedID, x, y to the row of the numpy array
                     pedsWithPos.append([ped, current_x, current_y])
 
-                if (ind >= numFrames * self.val_fraction) or (self.infer):
+                if (ind >= numFrames * self.val_fraction) or (self.infer):  #num_frames*val_fraction amount needs to go to validation set, then to training set. self.infer is true during testing so nothing goes to validation
                     # At inference time, no validation data
                     # Add the details of all the peds in the current frame to all_frame_data
                     all_frame_data[dataset_index].append(np.array(pedsWithPos))
@@ -156,8 +160,8 @@ class DataLoader():
             dataset_index += 1
 
         # Save the tuple (all_frame_data, frameList_data, numPeds_data) in the pickle file
-        ## all_frame_data is a list of lists of arrays (one array for each time frame) for tranining. Separate such lists are maintained for each dataset
-        ## similarly for valid_frame_data for validation data
+        ## all_frame_data is a list of lists of arrays (one array for each time frame) for tranining dataset during training OR testing dataset during testing. Separate such lists are maintained for each dataset
+        ## similarly for valid_frame_data for validation data during training
         ## frameList_data is a list of lists of frameIDs. Each list (one for each dataset) contains the set of frameIDs in that dataset
         ## numPeds_data is a list of lists of no. of pedestrians in each frameID
 
@@ -193,8 +197,11 @@ class DataLoader():
             # get the frame data for the current dataset
             all_frame_data = self.data[dataset]
             valid_frame_data = self.valid_data[dataset]
-            print('Training data from dataset {} : {}'.format(dataset, len(all_frame_data)))
-            print('Validation data from dataset {} : {}'.format(dataset, len(valid_frame_data)))
+            if self.infer:  #if testing
+                print('Testing data (no. of time frames) from dataset {} : {}'.format(dataset, len(all_frame_data)))    
+            else:   #if training
+                print('Training data (no. of time frames) from dataset {} : {}'.format(dataset, len(all_frame_data)))
+                print('Validation data (no. of time frames) from dataset {} : {}'.format(dataset, len(valid_frame_data)))
             # Increment the counter with the number of sequences in the current dataset
             counter += int(len(all_frame_data) / (self.seq_length)) ##counts number of sequences in total training data (from all the datasets)
             valid_counter += int(len(valid_frame_data) / (self.seq_length)) ##counts number of sequences in total validation data (from all the datasets)
@@ -202,8 +209,11 @@ class DataLoader():
         # Calculate the number of batches
         self.num_batches = int(counter/self.batch_size)
         self.valid_num_batches = int(valid_counter/self.batch_size)
-        print('Total number of training batches: {}'.format(self.num_batches * 2))
-        print('Total number of validation batches: {}'.format(self.valid_num_batches))
+        if self.infer:  #if training
+            print('Total number of testing batches: {}'.format(self.num_batches * 2))
+        else:   #if testing
+            print('Total number of training batches: {}'.format(self.num_batches * 2))
+            print('Total number of validation batches: {}'.format(self.valid_num_batches))
         # On an average, we need twice the number of batches to cover the data
         # due to randomization introduced
         self.num_batches = self.num_batches * 2
@@ -211,7 +221,7 @@ class DataLoader():
 
         ##NOTE:
         '''
-        Sequences are calculated for indivudual datasets because there shouldn't be ovrlap between datasets
+        Sequences are calculated for indivudual datasets because there shouldn't be overlap between datasets
         Batches can have sequences from multiple datasets
         '''
 
@@ -264,6 +274,11 @@ class DataLoader():
                 self.tick_batch_pointer(valid=False)
 
         return x_batch, y_batch, frame_batch, d
+        ## Format:
+        ## x_batch:     input sequence of length self.seq_length
+        ## y_batch:     output seq of same length shifted y 1 step in time
+        ## frame_batch: frame IDs in the batch
+        ## d:           current dataset pointer (points to the next batch to be loaded)
 
     def next_valid_batch(self, randomUpdate=True):
         '''

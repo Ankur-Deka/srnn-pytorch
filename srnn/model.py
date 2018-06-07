@@ -4,8 +4,13 @@ introduced in https://arxiv.org/abs/1511.05298
 
 Author : Anirudh Vemula
 Date : 16th March 2017
-'''
 
+
+##
+Note that computations are done trogetehr for all the people in time steps. The information is all stored in arrays/lists so that everything can be dealt with together
+
+##
+'''
 import torch.nn as nn
 from torch.autograd import Variable
 import torch
@@ -36,17 +41,17 @@ class HumanNodeRNN(nn.Module):
         self.input_size = args.human_node_input_size
         self.edge_rnn_size = args.human_human_edge_rnn_size
 
-        # Linear layer to embed input
+        # Linear layer to embed input ## 'e'
         self.encoder_linear = nn.Linear(self.input_size, self.embedding_size)
 
         # ReLU and Dropout layers
         self.relu = nn.ReLU()
         self.dropout = nn.Dropout(args.dropout)
 
-        # Linear layer to embed edgeRNN hidden states
+        # Linear layer to embed edgeRNN hidden states ## 'a'
         self.edge_embed = nn.Linear(self.edge_rnn_size, self.embedding_size)
 
-        # Linear layer to embed attention module output
+        # Linear layer to embed attention module output ##' a'
         self.edge_attention_embed = nn.Linear(self.edge_rnn_size*2, self.embedding_size)
 
         # The LSTM cell
@@ -56,6 +61,7 @@ class HumanNodeRNN(nn.Module):
         self.output_linear = nn.Linear(self.rnn_size, self.output_size)
 
     def forward(self, pos, h_temporal, h_spatial_other, h, c):
+        #print('forward2')
         '''
         Forward pass for the model
         params:
@@ -66,23 +72,52 @@ class HumanNodeRNN(nn.Module):
         c : cell state of the current nodeRNN
         '''
         # Encode the input position
+        ## 'e'
         encoded_input = self.encoder_linear(pos)
-        encoded_input = self.relu(encoded_input)
+        encoded_input = self.relu(encoded_input) 
         encoded_input = self.dropout(encoded_input)
 
         # Concat both the embeddings
+        ## 'a'
         h_edges = torch.cat((h_temporal, h_spatial_other), 1)
         h_edges_embedded = self.relu(self.edge_attention_embed(h_edges))
         h_edges_embedded = self.dropout(h_edges_embedded)
 
+        ## 'concat(e,a)'
+        ##$ This is important for me
         concat_encoded = torch.cat((encoded_input, h_edges_embedded), 1)
-
+        #print('concat_encoded',concat_encoded.shape) 1x256
+        
         # One-step of LSTM
+        ##$ This is important for me
         h_new, c_new = self.cell(concat_encoded, (h, c))
 
         # Get output
         out = self.output_linear(h_new)
 
+
+        ## Things I require:
+        ## h(t-1):  h
+        ## c(t-1):  c
+        ## (e,a):   concat_encoded
+        ## W:       self.cell.weight_ih/weight_hh/bias_ih/bias_hh       
+        ## H in parts:
+
+        
+        #w_hi, w_hf, w_hc, w_ho = self.cell.weight_hh_l0.chunk(4, 0)
+        # if self.infer:
+        #     print('cell parameters')
+        #     i=0
+        #     for name,parameter in self.cell.named_parameters():
+        #         print('parameter',i,name,parameter.shape)
+        #         i+=1  
+        ## cell parameters
+        ## parameter 0 weight_ih torch.Size([512, 256])
+        ## parameter 1 weight_hh torch.Size([512, 128])
+        ## parameter 2 bias_ih torch.Size([512])
+        ## parameter 3 bias_hh torch.Size([512])
+
+        #print('weight',self.cell.weight_if.shape)
         return out, h_new, c_new
 
 
@@ -188,9 +223,11 @@ class EdgeAttention(nn.Module):
         attn = torch.mul(attn, temperature)
 
         # Softmax
+        ## Softmax values of attention weights
         attn = torch.nn.functional.softmax(attn)
 
         # Compute weighted value
+        # Uppercase H
         weighted_value = torch.mv(torch.t(h_spatials), attn)
 
         return weighted_value, attn
@@ -207,7 +244,7 @@ class SRNN(nn.Module):
         args : Training arguments
         infer : Training or test time (True at test time)
         '''
-        super(SRNN, self).__init__()
+        super(SRNN, self).__init__()    #initialize the parent class
 
         self.args = args
         self.infer = infer
@@ -236,6 +273,7 @@ class SRNN(nn.Module):
         self.attn = EdgeAttention(args, infer)
 
     def forward(self, nodes, edges, nodesPresent, edgesPresent, hidden_states_node_RNNs, hidden_states_edge_RNNs, cell_states_node_RNNs, cell_states_edge_RNNs):
+        #print('forward1')
         '''
         Forward pass for the model
         params:
@@ -257,6 +295,7 @@ class SRNN(nn.Module):
         hidden_states_edge_RNNs
         '''
         # Get number of nodes
+        ## In the whole sequence, some may be missing from some frames
         numNodes = nodes.size()[1]
 
         # Initialize output array
@@ -266,6 +305,9 @@ class SRNN(nn.Module):
 
         # Data structure to store attention weights
         attn_weights = [{} for _ in range(self.seq_length)]
+
+        # New attention weights
+        new_attn_weights = [{} for _ in range(self.seq_length)]        
 
         # For each frame
         for framenum in range(self.seq_length):
@@ -362,6 +404,7 @@ class SRNN(nn.Module):
                         h_node = hidden_states_nodes_from_edges_temporal[node]
 
                         # Do forward pass through attention module
+                        # Returns: uppercase H, softmax values of attention (score)
                         hidden_attn_weighted, attn_w = self.attn(h_node.view(1, -1), h_spatial[l])
 
                         # Store the attention weights
@@ -370,6 +413,131 @@ class SRNN(nn.Module):
                         # Store the output of attention module in temporary tensor
                         hidden_states_nodes_from_edges_spatial[node] = hidden_attn_weighted
 
+                    
+                    # NEW ATTENTION interpretation
+                    if self.infer:
+                        #print('New set of nodes')
+                        #print('numNodes',numNodes)  #Total nodes in the sequence
+                        #print('len(nodeIDs)',len(nodeIDs))  #Nodes in the frame
+                        #print('nodeIDs',nodeIDs)
+                        i=0
+                        # for each node
+                        for node in range(numNodes):
+
+                            # REFERENFCE
+                            # h_oth: spatial hidden states from other nodes
+                            # a_w: attention weights (after softmax)
+                            # w_ih,w_hh,b_ih,b_hh: weights and biases
+                            # cur_h_states: current hidden states of all relevant nodes. One row for each node.
+                            # cur_c_states: current cell states of all the relevant nodes. One row for each node.
+
+                            # Get the indices of spatial edges associated with this node
+                            l = np.where(list_of_spatial_nodes == node)[0]
+                            if len(l) == 0:
+                                # If the node has no spatial edges, nothing to do
+                                continue
+
+                            ## Perform data extraction in 3 parts
+                            ## PART 1
+                            # Get the indices of spatial edges associated with this node
+                            l = np.where(list_of_spatial_nodes == node)[0]
+                            l = torch.LongTensor(l)
+                            if self.use_cuda:
+                                l = l.cuda()
+                            # What are the other nodes with these edges?
+                            node_others = [x[1] for x in edgeIDs if x[0] == node and x[0] != x[1]]                        
+                            # If it has spatial edges
+                            # Get its corresponding temporal edgeRNN hidden state
+                            h_node = hidden_states_nodes_from_edges_temporal[node]
+                            h_oth=h_spatial[l].data
+                            a_w_withID=attn_weights[framenum][node]
+                            a_w=a_w_withID[0]   #extract only weights
+                            a_w=a_w.reshape(a_w.shape[0],1) #reshape as column vector
+                            a_w=torch.Tensor(a_w)
+                            #print('h spatial others:',h_oth.shape)
+                            #print('attn_weights',a_w)
+
+
+                            ## PART 2
+                            # Get list of nodes
+                            list_of_nodes = Variable(torch.LongTensor(nodeIDs))
+                            if self.use_cuda:
+                                list_of_nodes = list_of_nodes.cuda()
+                            
+                            # Get their node features
+                            nodes_current_selected = torch.index_select(nodes_current, 0, list_of_nodes)
+
+                            # Get the hidden and cell states of the corresponding nodes. Data for different nodes in  different rows
+                            cur_h_states = torch.index_select(hidden_states_node_RNNs, 0, list_of_nodes)
+                            cur_c_states = torch.index_select(cell_states_node_RNNs, 0, list_of_nodes)
+                            cur_h_node = cur_h_states[i].data.view(cur_h_states.shape[1],1)    #select the required node's data
+                            i+=1
+
+                            #print('Current',cur_h_states.shape,cur_c_states.shape)
+
+
+                            ## PART 3
+                            #print('cell parameters')
+                            w_ih=self.humanNodeRNN.cell.weight_ih.data
+                            w_hh=self.humanNodeRNN.cell.weight_hh.data
+                            b_ih=self.humanNodeRNN.cell.bias_ih.data
+                            b_hh=self.humanNodeRNN.cell.bias_hh.data
+                            #add dimension
+                            b_ih=b_ih.view(b_ih.shape[0],1)
+                            b_hh=b_hh.view(b_hh.shape[0],1)
+                            #print(w_ih.shape,w_hh.shape,b_ih.shape,b_hh.shape)
+
+
+                            ## Perform the actual computation
+                            ##! Assuming that the hidden and cell states are stored in order of IDs
+                            ##! Assuming that weights inside LSTMCell are in the order i,f,g,o
+
+                            # Get weighted hidden states as different columns                            
+                            h_oth_w=(h_oth*a_w).t()
+
+                            # Get q_k's first part with different k's in different columns
+                            q=torch.matmul(w_ih,h_oth_w)
+                            
+                            # Update q_k with the later terms
+                            q+=(b_ih+torch.matmul(w_hh,cur_h_node)+b_hh)/(len(nodeIDs)-1)
+
+                            # In exponential term
+                            exp_q=torch.sigmoid(q)
+
+                            # Should we normalize gatewise (128 gates), I think no
+                            # # Q-tot = normalizing term
+                            # q_tot=torch.ones(exp_q.shape[0],1)
+                            # for ii in range(exp_q.shape[1]):
+                            #     q_tot*=exp_q[:,ii]
+
+                            # # normalized q
+                            # norm_q=exp_q#/q_tot
+                            
+                            # size of hidden states
+                            size=self.human_node_rnn_size
+                            
+                            # computing over forget and new information gates
+                            new_info=(exp_q[0:size,:]-exp_q[size:size*2,:])
+
+                            #considering the output gate
+                            eff_info=new_info*exp_q[3*size:4*size,:]
+                            
+                            # totalling over all gates
+                            new_attn=torch.sum(eff_info,dim=0)
+                            new_attn/=sum(new_attn)
+                            new_attn*=3                            
+                            
+                            # Store the attention weights
+                            new_attn_weights[framenum][node] = (new_attn.numpy(), node_others)
+                            
+
+
+                            
+                                                    
+
+
+
+
             # If there are nodes in this frame
             if len(nodeIDs) != 0:
 
@@ -377,6 +545,9 @@ class SRNN(nn.Module):
                 list_of_nodes = Variable(torch.LongTensor(nodeIDs))
                 if self.use_cuda:
                     list_of_nodes = list_of_nodes.cuda()
+
+                ## Select as array because we need the quantities of all the nodes
+                ##* I didn't understand why selection is needed here-it's basically selecting everything. Maybe it's just because of data type conversion or my lack of understanding of pytorch tensors
 
                 # Get their node features
                 nodes_current_selected = torch.index_select(nodes_current, 0, list_of_nodes)
@@ -390,7 +561,8 @@ class SRNN(nn.Module):
                 h_spatial_other = hidden_states_nodes_from_edges_spatial[list_of_nodes.data]
 
                 # Do a forward pass through nodeRNN
-                outputs[framenum * numNodes + list_of_nodes.data], h_nodes, c_nodes = self.humanNodeRNN(nodes_current_selected, h_temporal_other, h_spatial_other, hidden_nodes_current, cell_nodes_current)
+                ##** it was written self.humanNodeRNN instead of self.humanNodeRNN.forward but it still worked
+                outputs[framenum * numNodes + list_of_nodes.data], h_nodes, c_nodes = self.humanNodeRNN.forward(nodes_current_selected, h_temporal_other, h_spatial_other, hidden_nodes_current, cell_nodes_current)
 
                 # Update the hidden and cell states
                 hidden_states_node_RNNs[list_of_nodes.data] = h_nodes
@@ -404,4 +576,4 @@ class SRNN(nn.Module):
             for node in range(numNodes):
                 outputs_return[framenum, node, :] = outputs[framenum*numNodes + node, :]
 
-        return outputs_return, hidden_states_node_RNNs, hidden_states_edge_RNNs, cell_states_node_RNNs, cell_states_edge_RNNs, attn_weights
+        return outputs_return, hidden_states_node_RNNs, hidden_states_edge_RNNs, cell_states_node_RNNs, cell_states_edge_RNNs, attn_weights, new_attn_weights

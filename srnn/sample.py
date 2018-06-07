@@ -32,12 +32,18 @@ def main():
     # Predicted length of the trajectory parameter
     parser.add_argument('--pred_length', type=int, default=12,
                         help='Predicted length of the trajectory')
+    
+    # Train Dataset
+    # Use like:
+    # python transpose_inrange.py --train_dataset index_1 index_2 ...
+    parser.add_argument('-l','--train_dataset', nargs='+', help='<Required> training dataset(s) the model is trained on: --train_dataset index_1 index_2 ...', default=[0,1,2,4], type=int)    
+
     # Test dataset
     parser.add_argument('--test_dataset', type=int, default=3,
                         help='Dataset to be tested on')
 
     # Model to be loaded
-    parser.add_argument('--epoch', type=int, default=49,
+    parser.add_argument('--epoch', type=int, default=26,
                         help='Epoch of model to be loaded')
 
     # Use GPU or not
@@ -48,12 +54,12 @@ def main():
     sample_args = parser.parse_args()
 
     # Save directory
-    save_directory = 'save/'
-    save_directory += str(sample_args.test_dataset)+'/'
-    save_directory += 'save_attention'
+    load_directory = 'save/'
+    load_directory += 'trainedOn_'+str(sample_args.train_dataset)
 
     # Define the path for the config file for saved args
-    with open(os.path.join(save_directory, 'config.pkl'), 'rb') as f:
+    ## Arguments of parser while traning
+    with open(os.path.join(load_directory, 'config.pkl'), 'rb') as f:
         saved_args = pickle.load(f)
 
     # Initialize net
@@ -61,7 +67,7 @@ def main():
     if saved_args.use_cuda:        
         net = net.cuda()
 
-    checkpoint_path = os.path.join(save_directory, 'srnn_model_'+str(sample_args.epoch)+'.tar')
+    checkpoint_path = os.path.join(load_directory, 'srnn_model_'+str(sample_args.epoch)+'.tar')
 
     if os.path.isfile(checkpoint_path):
         print('Loading checkpoint')
@@ -109,7 +115,7 @@ def main():
         obs_nodes, obs_edges, obs_nodesPresent, obs_edgesPresent = nodes[:sample_args.obs_length], edges[:sample_args.obs_length], nodesPresent[:sample_args.obs_length], edgesPresent[:sample_args.obs_length]
 
         # Sample function
-        ret_nodes, ret_attn = sample(obs_nodes, obs_edges, obs_nodesPresent, obs_edgesPresent, sample_args, net, nodes, edges, nodesPresent)
+        ret_nodes, ret_attn, ret_new_attn = sample(obs_nodes, obs_edges, obs_nodesPresent, obs_edgesPresent, sample_args, net, nodes, edges, nodesPresent)
 
         # Compute mean and final displacement error
         total_error += get_mean_error(ret_nodes[sample_args.obs_length:].data, nodes[sample_args.obs_length:].data, nodesPresent[sample_args.obs_length-1], nodesPresent[sample_args.obs_length:], saved_args.use_cuda)
@@ -121,9 +127,9 @@ def main():
 
         # Store results
         if saved_args.use_cuda:            
-            results.append((nodes.data.cpu().numpy(), ret_nodes.data.cpu().numpy(), nodesPresent, sample_args.obs_length, ret_attn, frameIDs))
+            results.append((nodes.data.cpu().numpy(), ret_nodes.data.cpu().numpy(), nodesPresent, sample_args.obs_length, ret_attn, ret_new_attn, frameIDs))
         else:
-            results.append((nodes.data.numpy(), ret_nodes.data.numpy(), nodesPresent, sample_args.obs_length, ret_attn, frameIDs))
+            results.append((nodes.data.numpy(), ret_nodes.data.numpy(), nodesPresent, sample_args.obs_length, ret_attn, ret_new_attn, frameIDs))
 
         # Reset the ST graph
         stgraph.reset()
@@ -132,6 +138,9 @@ def main():
     print('Total final error of the model is ', final_error / dataloader.num_batches)
 
     print('Saving results')
+    save_directory=load_directory+'/testedOn_'+str(sample_args.test_dataset)
+    if not os.path.exists(save_directory):
+        os.makedirs(save_directory)
     with open(os.path.join(save_directory, 'results.pkl'), 'wb') as f:
         pickle.dump(results, f)
 
@@ -182,7 +191,8 @@ def sample(nodes, edges, nodesPresent, edgesPresent, args, net, true_nodes, true
     # Propagate the observed length of the trajectory
     for tstep in range(args.obs_length-1):
         # Forward prop
-        out_obs, h_nodes, h_edges, c_nodes, c_edges, _ = net(nodes[tstep].view(1, numNodes, 2), edges[tstep].view(1, numNodes*numNodes, 2), [nodesPresent[tstep]], [edgesPresent[tstep]], h_nodes, h_edges, c_nodes, c_edges)
+        ##** it was written net() instead of net.forward() but it still worked. I don't know why - Turns out, pytorch documentation talks about it.
+        out_obs, h_nodes, h_edges, c_nodes, c_edges, _, _ = net.forward(nodes[tstep].view(1, numNodes, 2), edges[tstep].view(1, numNodes*numNodes, 2), [nodesPresent[tstep]], [edgesPresent[tstep]], h_nodes, h_edges, c_nodes, c_edges)
         # loss_obs = Gaussian2DLikelihood(out_obs, nodes[tstep+1].view(1, numNodes, 2), [nodesPresent[tstep+1]])
 
     # Initialize the return data structures
@@ -197,12 +207,13 @@ def sample(nodes, edges, nodesPresent, edgesPresent, args, net, true_nodes, true
     ret_edges[:args.obs_length, :, :] = edges.clone()
 
     ret_attn = []
-
+    ret_new_attn = []
     # Propagate the predicted length of trajectory (sampling from previous prediction)
     for tstep in range(args.obs_length-1, args.pred_length + args.obs_length-1):
         # TODO Not keeping track of nodes leaving the frame (or new nodes entering the frame, which I don't think we can do anyway)
         # Forward prop
-        outputs, h_nodes, h_edges, c_nodes, c_edges, attn_w = net(ret_nodes[tstep].view(1, numNodes, 2), ret_edges[tstep].view(1, numNodes*numNodes, 2),
+        ##** it was written net() instead of net.forward() but it still worked. I don't know why - Turns out, pytorch documentation talks about it.
+        outputs, h_nodes, h_edges, c_nodes, c_edges, attn_w, new_attn_w = net.forward(ret_nodes[tstep].view(1, numNodes, 2), ret_edges[tstep].view(1, numNodes*numNodes, 2),
                                                                   [nodesPresent[args.obs_length-1]], [edgesPresent[args.obs_length-1]], h_nodes, h_edges, c_nodes, c_edges)
         loss_pred = Gaussian2DLikelihoodInference(outputs, true_nodes[tstep + 1].view(1, numNodes, 2), nodesPresent[args.obs_length-1], [true_nodesPresent[tstep + 1]], args.use_cuda)
 
@@ -220,8 +231,11 @@ def sample(nodes, edges, nodesPresent, edgesPresent, args, net, true_nodes, true
 
         # Store computed attention weights
         ret_attn.append(attn_w[0])
+        ret_new_attn.append(new_attn_w[0])
+        print(new_attn_w[0])
+        
 
-    return ret_nodes, ret_attn
+    return ret_nodes, ret_attn, ret_new_attn
 
 
 if __name__ == '__main__':
