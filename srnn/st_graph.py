@@ -21,7 +21,7 @@ class ST_GRAPH():
         self.batch_size = batch_size
         self.seq_length = seq_length
 
-        self.nodes = [{} for i in range(batch_size)]    ##empty list of length batch_size (no. of sequences)
+        self.nodes = [{} for i in range(batch_size)]    ##list of length batch_size (no. of sequences) with null elements
         self.edges = [{} for i in range(batch_size)]
 
     def reset(self):

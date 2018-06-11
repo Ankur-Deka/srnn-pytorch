@@ -278,7 +278,7 @@ class DataLoader():
         ## x_batch:     input sequence of length self.seq_length
         ## y_batch:     output seq of same length shifted y 1 step in time
         ## frame_batch: frame IDs in the batch
-        ## d:           current dataset pointer (points to the next batch to be loaded)
+        ## d:           current position of dataset pointer (points to the next batch to be loaded)
 
     def next_valid_batch(self, randomUpdate=True):
         '''

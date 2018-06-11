@@ -525,7 +525,7 @@ class SRNN(nn.Module):
                             # totalling over all gates
                             new_attn=torch.sum(eff_info,dim=0)
                             new_attn/=sum(new_attn)
-                            new_attn*=3                            
+                            new_attn*=len(nodeIDs)                            
                             
                             # Store the attention weights
                             new_attn_weights[framenum][node] = (new_attn.numpy(), node_others)
