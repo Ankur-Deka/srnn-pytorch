@@ -232,7 +232,7 @@ def sample(nodes, edges, nodesPresent, edgesPresent, args, net, true_nodes, true
         # Store computed attention weights
         ret_attn.append(attn_w[0])
         ret_new_attn.append(new_attn_w[0])
-        print(new_attn_w[0])
+        #print(new_attn_w[0])
         
 
     return ret_nodes, ret_attn, ret_new_attn

@@ -4,12 +4,17 @@ Handles processing the input and target data in batches and sequences
 
 Author : Anirudh Vemula
 Date : 15th March 2017
+
+New utils has added code for dealing with obstacle map
+
 '''
 
 import os
 import pickle
 import numpy as np
 import random
+import PIL as Image
+import torch.transforms as transforms
 
 
 class DataLoader():
@@ -356,3 +361,15 @@ class DataLoader():
         else:
             self.valid_dataset_pointer = 0
             self.valid_frame_pointer = 0
+
+    # function to load costmap image at test time and return a (1,1,60,60) dimension torch tensor
+    def load_test(path):
+        resize_trans=transforms.Compose([transforms.Resize(size=(60,60)),transforms.ToTensor()])
+        if not os.path.exists(path):
+            print('File {} doesnt exist'.format(path))
+        else:   
+            img = Image.open(path)
+            img = img.convert(mode='L')
+            img = resize_trans(img)
+            x = img.view(1,1,60,60)
+            return(img.view(60,60).numpy(),x)

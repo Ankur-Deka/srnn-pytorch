@@ -271,14 +271,14 @@ def train(args):
                 if args.use_cuda:
                     cell_states_edge_RNNs = cell_states_edge_RNNs.cuda()
 
-                outputs, _, _, _, _, _ = net(nodes[:args.seq_length], edges[:args.seq_length], nodesPresent[:-1], edgesPresent[:-1],
+                outputs, _, _, _, _, _, _ = net(nodes[:args.seq_length], edges[:args.seq_length], nodesPresent[:-1], edgesPresent[:-1],
                                              hidden_states_node_RNNs, hidden_states_edge_RNNs,
                                              cell_states_node_RNNs, cell_states_edge_RNNs)
 
                 # Compute loss
                 loss = Gaussian2DLikelihood(outputs, nodes[1:], nodesPresent[1:], args.pred_length)
 
-                loss_batch += loss.data[0]
+                loss_batch += loss.data.item()
 
                 # Reset the stgraph
                 stgraph.reset()
