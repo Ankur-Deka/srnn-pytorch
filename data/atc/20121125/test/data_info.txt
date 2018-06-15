@@ -1,1 +1,4 @@
-
+ Chunksize: 200000
+ No. of chunks: 1
+ Start chunk: 10
+ [xmin,xwidth,ymin,ywidth]: [-6.0, 8.0, -4.0, 8.0]
