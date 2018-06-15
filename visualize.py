@@ -4,7 +4,13 @@ introduced in https://arxiv.org/abs/1511.05298
 
 Author : Anirudh Vemula
 Date : 3rd April 2017
+
+Update:
+1) Added option for with background
+2) Trying to add option to see only the ped IDs which are at the 8th time step == pedIDs whose trajectories are being predicted
 '''
+
+
 import numpy as np
 import matplotlib.pyplot as plt
 import pickle
@@ -13,7 +19,7 @@ import argparse
 import seaborn
 import os
 
-def plot_trajectories(true_trajs, pred_trajs, nodesPresent, obs_length, name, plot_directory, withBackground=False):
+def plot_trajectories(true_trajs, pred_trajs, nodesPresent, obs_length, name, plot_directory, args):
     '''
     Parameters
     ==========
@@ -35,14 +41,14 @@ def plot_trajectories(true_trajs, pred_trajs, nodesPresent, obs_length, name, pl
     '''
 
     traj_length, numNodes, _ = true_trajs.shape
-    # Initialize figure
-    # Load the background
-    # im = plt.imread('plot/background.png')
-    # if withBackground:
-    #    implot = plt.imshow(im)
+    #Initialize figure
+    #Load the background
+    im = plt.imread('./maps/0.png')
+    if args.with_background:
+       implot = plt.imshow(im,extent=[-4,4,-4,4])
 
-    # width_true = im.shape[0]
-    # height_true = im.shape[1]
+    width_true = im.shape[0]
+    height_true = im.shape[1]
 
     # if withBackground:
     #    width = width_true
@@ -56,13 +62,17 @@ def plot_trajectories(true_trajs, pred_trajs, nodesPresent, obs_length, name, pl
         pred_pos = pred_trajs[tstep, :]
         true_pos = true_trajs[tstep, :]
 
-        for ped in range(numNodes):
-            if ped not in traj_data and tstep < obs_length:
-                traj_data[ped] = [[], []]
+        pred_pos = pred_pos[:,[1,0]]    # since y axis is shown before x
+        true_pos = true_pos[:,[1,0]]
 
-            if ped in nodesPresent[tstep]:
-                traj_data[ped][0].append(true_pos[ped, :])
-                traj_data[ped][1].append(pred_pos[ped, :])
+        for ped in range(numNodes):
+            if (ped in nodesPresent[7]) or args.show_all:
+                if ped not in traj_data and tstep < obs_length:
+                    traj_data[ped] = [[], []]
+
+                if ped in nodesPresent[tstep]:                
+                    traj_data[ped][0].append(true_pos[ped, :])
+                    traj_data[ped][1].append(pred_pos[ped, :])
 
     for j in traj_data:
         c = np.random.rand(3)
@@ -87,13 +97,11 @@ def plot_trajectories(true_trajs, pred_trajs, nodesPresent, obs_length, name, pl
     #plt.ylim(-3.1, 3.1)
 
     plt.show()
-    if withBackground:
-        plt.savefig('plot_with_background/'+name+'.png')
-    else:
-        plt.savefig(plot_directory+'/'+name+'.png')
+    plt.close('all')
+    plt.savefig(plot_directory+'/'+name+'.png')
 
     plt.gcf().clear()
-    # plt.close('all')
+    
     plt.clf()
 
 
@@ -107,6 +115,8 @@ def main():
 
     parser.add_argument('--test_dataset', type=int, default=3,
                         help='test dataset index')
+    parser.add_argument('--with_background', default = False, action = 'store_true')
+    parser.add_argument('--show_all', default = False, action = 'store_true', help = 'Show the peds for whon prediction isn\'t posssible becuase they aren\'t present at last observed step')
 
     # Parse the parameters
     args = parser.parse_args()
@@ -116,21 +126,25 @@ def main():
     save_directory += 'trainedOn_'+str(args.train_dataset) + '/testedOn_' + str(args.test_dataset)
     plot_directory = 'plot/trainedOn_'+str(args.train_dataset) + '/testedOn_' + str(args.test_dataset)
 
+    if args.with_background:
+        plot_directory+='with_background'
+
     if not os.path.exists(plot_directory):
-            os.makedirs(plot_directory)
+        os.makedirs(plot_directory)
 
     f = open(save_directory+'/results.pkl', 'rb')
     results = pickle.load(f)
 
     # print "Enter 0 (or) 1 for without/with background"
     # withBackground = int(input())
-    withBackground = 0
 
     print('Plotting and saving in '+plot_directory)
     for i in range(len(results)):
         print('Sequence', i)
         name = 'sequence' + str(i)
-        plot_trajectories(results[i][0], results[i][1], results[i][2], results[i][3], name, plot_directory, withBackground)
+        ## results[i], each i for (1 batch = 1 seq) in test time because batch_size is 1
+        ## true_trajs, pred_trajs, nodesPresent, obs_length, name, plot_directory, with_background
+        plot_trajectories(results[i][0], results[i][1], results[i][2], results[i][3], name, plot_directory, args)  
 
 
 if __name__ == '__main__':
